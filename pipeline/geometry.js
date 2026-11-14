@@ -389,18 +389,57 @@ export function buildPendant(kept, P, progress = () => {}) {
     }
   }
 
-  // --- askı halkası: çemberli modda tepede; çerçevesizde ağırlık merkezinin üstünde ---
-  let bcx = 0, bcy = Rc + Rb, tilt = 0;
-  if (!framed) {
+  // --- askı halkası: her zaman ağırlık merkeziyle aynı düşey eksende, kolye düz asılsın ---
+  // çemberli: çemberin üstünde o eksene kayar. çerçevesiz: eksenin altındaki en yüksek çizgiye oturur;
+  // orada çizgi yoksa (yan yana iki figürün arası) figürün tepesi hizasında durur, en yakın çizgilere telle bağlanır.
+  let bcx = 0, bcy = Rc + Rb, tilt = 0, hangers = 0;
+  {
     let mx = 0, my = 0, cnt = 0;
     const top = new Float64Array(nx).fill(-Infinity);
     for (let i = 0; i < nx; i++)
-      for (let j = 0; j < ny; j++) if (d2[i * ny + j] < w2) { mx += gx[i]; my += gy[j]; cnt++; top[i] = gy[j]; }
+      for (let j = 0; j < ny; j++) {
+        const ink = d2[i * ny + j] < w2;
+        if (ink || ring2d[i * ny + j] < P.ring_d / 2) { mx += gx[i]; my += gy[j]; cnt++; }
+        if (ink) top[i] = gy[j];
+      }
     mx /= cnt; my /= cnt;
-    let k = -1;
-    for (let i = 0; i < nx; i++)
-      if (Math.abs(gx[i] - mx) <= 0.06 * (sx1 - sx0) && (k < 0 || top[i] > top[k])) k = i;
-    bcx = gx[k]; bcy = top[k] + Rb - 0.15;
+    if (framed) {
+      const sn = Math.max(-0.5, Math.min(0.5, mx / (Rc + Rb)));
+      bcx = (Rc + Rb) * sn; bcy = (Rc + Rb) * Math.sqrt(1 - sn * sn);
+    } else {
+      let rest = -Infinity;                                   // halkanın çizgiye değerek oturduğu yükseklik
+      for (let i = 0; i < nx; i++) {
+        const dx = gx[i] - mx;
+        if (Math.abs(dx) < Rb && top[i] > -Infinity) rest = Math.max(rest, top[i] + Math.sqrt(Rb * Rb - dx * dx) - 0.15);
+      }
+      const flush = sy1 + W / 2 - Rb - P.bail_d / 2;          // halkanın tepesi figürün tepesiyle aynı hizada
+      bcx = mx; bcy = Math.max(rest, flush);
+      if (bcy - rest > 0.05) {
+        const nearest = (ok) => {
+          let bi = -1, bd = Infinity;
+          for (let i = 0; i < nx; i++) {
+            if (!ok(gx[i] - bcx)) continue;
+            const dx2 = (gx[i] - bcx) ** 2;
+            if (dx2 >= bd) continue;
+            for (let j = 0; j < ny; j++) {
+              if (d2[i * ny + j] >= w2) continue;
+              const q = dx2 + (gy[j] - bcy) ** 2;
+              if (q < bd) { bd = q; bi = i * ny + j; }
+            }
+          }
+          return bi < 0 ? null : [gx[Math.floor(bi / ny)], gy[bi % ny], Math.sqrt(bd)];
+        };
+        const first = nearest(() => true), targets = [first];
+        const side = first[0] - bcx >= 0 ? 1 : -1;
+        const second = nearest((dx) => dx * side < -Rb);      // karşı yandaki çizgi: halka iki yandan tutulsun
+        if (second && second[2] <= Math.max(2 * first[2], first[2] + 5)) targets.push(second);
+        for (const [tx, ty, len] of targets) {
+          const ux = (tx - bcx) / Math.max(len, 1e-9), uy = (ty - bcy) / Math.max(len, 1e-9);
+          const st = seg(bcx + ux * Rb, bcy + uy * Rb, tx + ux * 0.3, ty + uy * 0.3);
+          struts.push(st); splat(st); hangers++;
+        }
+      }
+    }
     tilt = Math.atan2(bcx - mx, bcy - my) * 180 / Math.PI;
   }
   progress("mesh");
@@ -486,7 +525,7 @@ export function buildPendant(kept, P, progress = () => {}) {
     metrics: {
       en: ext[0], boy: ext[1], kalinlik: ext[2], gram: mesh.volume / 1000 * P.density,
       en_ince_duvar: minWall, en_kucuk_delik: minHole, tel: `${W} × ${Tk} mm`,
-      kopru: bridges, uzatilan_uc: anchored, doldurulan_delik: filledCount, aski_egimi: tilt, ucgen: mesh.faces.length / 3,
+      kopru: bridges, aski_teli: hangers, uzatilan_uc: anchored, doldurulan_delik: filledCount, aski_egimi: tilt, ucgen: mesh.faces.length / 3,
     },
   };
 }

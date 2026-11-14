@@ -55,15 +55,27 @@ export function paperRegion(rgba, w, h, P) {
 
 /** Kağıt zeminini tahmin edip mürekkebi ayır. {mask, dark, cropped} döner. */
 export function inkMask(rgba, w, h, P) {
-  const n = w * h, g = new Uint8Array(n);
-  for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = Math.min(rgba[j], rgba[j + 1], rgba[j + 2]);
+  const n = w * h, g = new Uint8Array(n), gx = new Uint8Array(n);
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    g[i] = Math.min(rgba[j], rgba[j + 1], rgba[j + 2]);
+    gx[i] = Math.max(rgba[j], rgba[j + 1], rgba[j + 2]);
+  }
   const k = Math.max(Math.floor(w / 40), 31) | 1;
-  const closed = I.closeRect(I.medianBlur5(g, w, h), w, h, k);
-  const bg = I.gaussianBlurCoarse(closed, w, h, k / 2, I.gaussKsize(k / 2, true));
+  const ground = (ch) => I.gaussianBlurCoarse(I.closeRect(I.medianBlur5(ch, w, h), w, h, k), w, h, k / 2, I.gaussKsize(k / 2, true));
+  const bg = ground(g), bgx = ground(gx);
   let dark = new Float64Array(n);
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
   for (let i = 0; i < n; i++) {
-    const v = 1 - g[i] / Math.max(Math.round(bg[i]), 1);
-    dark[i] = v < 0 ? 0 : v > 1 ? 1 : v;
+    const b = Math.max(Math.round(bg[i]), 1), bx = Math.max(Math.round(bgx[i]), 1);
+    let v = clamp01(1 - g[i] / b);
+    // renkli kağıt (turuncu, pembe...): en küçük kanal zeminde zaten koyu ve grenli, kalemi gürültüden
+    // ayıramaz; orada en parlak kanala geç. Beyaz/soluk kağıtta (oran >= colored_hi) sonuç değişmez.
+    const ratio = b / bx;
+    if (ratio < P.colored_hi) {
+      const a = Math.min((P.colored_hi - ratio) / (P.colored_hi - P.colored_lo), 1);
+      v = (1 - a) * v + a * clamp01(1 - gx[i] / bx);
+    }
+    dark[i] = v;
   }
   dark = I.gaussianBlur(dark, w, h, w / 900, I.gaussKsize(w / 900, false));   // kalem grenini erit
   const paper = paperRegion(rgba, w, h, P);
@@ -82,5 +94,11 @@ export function inkMask(rgba, w, h, P) {
   for (let i = 0; i < n; i++) holes[i] = filled[i] && !m[i] ? 1 : 0;
   const hl = I.label(holes, w, h, 4), lim = (w / 300) ** 2;
   for (let i = 0; i < n; i++) if (holes[i] && hl.areas[hl.lab[i]] < lim) m[i] = 1;
+  // gölge ve leke: kıvrık kağıt köşesi, bant izi, kağıt kenarı. Kalem kadar koyulaşmayan parçalar çizim değildir.
+  const cl = I.label(m, w, h, 8), peak = new Float64Array(cl.n + 1);
+  let top = 0;
+  for (let i = 0; i < n; i++) if (m[i] && dark[i] > peak[cl.lab[i]]) peak[cl.lab[i]] = dark[i];
+  for (let c = 1; c <= cl.n; c++) top = Math.max(top, peak[c]);
+  for (let i = 0; i < n; i++) if (m[i] && peak[cl.lab[i]] < P.shadow * top) m[i] = 0;
   return { mask: m, dark, cropped: paper !== null };
 }

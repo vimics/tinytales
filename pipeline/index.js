@@ -12,6 +12,7 @@ export const DEFAULTS = {
   bail_hole: 2.2, bail_d: 1.1, min_feature: 0.8, min_spur: 1.5, diverge: 1.0, snap: 1, hole: 0.4,
   detail_len: 6.0, min_piece: 2.0, conflict_max: 0.9, faint: 0.1, anchor_reach: 2.5, smooth: 0.05,
   fillet: 0.15, voxel: 0.08, density: 4.43, paper_min: 0.02, paper_edge: 0.7, paper_margin: 0.02,
+  colored_hi: 0.7, colored_lo: 0.5, shadow: 0.6,
 };
 
 /** Fotoğrafta çizim bulunamadığında fırlatılır. */
