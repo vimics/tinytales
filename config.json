@@ -1,0 +1,23 @@
+{
+  "marka": "tinytales",
+  "fiyat": null,
+  "zincirler": [
+    {
+      "id": "yok",
+      "ad": "Zincirsiz (yalnızca kolye ucu)"
+    },
+    {
+      "id": "45",
+      "ad": "45 cm zincir"
+    },
+    {
+      "id": "50",
+      "ad": "50 cm zincir"
+    },
+    {
+      "id": "60",
+      "ad": "60 cm zincir"
+    }
+  ],
+  "siparis_url": null
+}

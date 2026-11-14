@@ -1,0 +1,50 @@
+/* tinytales tasarım sistemi: token'lar. Bileşenler (app.css) yalnızca bu değişkenleri kullanır. */
+:root {
+  /* renk: resim kağıdı + pastel boya kutusu */
+  --paper: #fffaf0;
+  --paper-2: #f6eedd;
+  --surface: #ffffff;
+  --ink: #2b2a35;
+  --ink-2: #5c5a6b;
+  --ink-3: #8d8b9a;
+  --line: #2b2a35;            /* kartlar kalemle çizilmiş gibi koyu kenarlı */
+  --line-soft: #e6dcc8;
+  --accent: #e03e36;          /* kırmızı boya */
+  --accent-dark: #a82a24;
+  --accent-ink: #ffffff;
+  --accent-soft: #ffe3df;
+  --sun: #ffc93c;
+  --sun-soft: #fff1c4;
+  --sky: #4aa8e8;
+  --sky-dark: #1f6fb0;
+  --sky-soft: #dcefff;
+  --grass: #4fb86a;
+  --grass-soft: #dff5e3;
+  --grape: #9b6bd6;
+  --ok: #2f8f4e;
+  --danger: #b3261e;
+  --danger-soft: #fde5e3;
+
+  /* tipografi */
+  --font-display: "Baloo 2", "Comic Sans MS", "Chalkboard SE", system-ui, sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.3rem;
+  --fs-xl: 1.85rem;
+  --fs-2xl: clamp(2.4rem, 6vw, 4rem);
+
+  /* boşluk */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 72px;
+
+  /* biçim: elle çizilmiş gibi hafif yamuk köşeler */
+  --r-sm: 12px; --r-md: 16px; --r-pill: 999px;
+  --r-wobble: 26px 18px 30px 16px / 18px 28px 16px 26px;
+  --r-wobble-2: 18px 28px 16px 30px / 28px 16px 26px 18px;
+  --border: 2.5px solid var(--line);
+  --pop: 4px 5px 0 var(--ink);          /* kesik kağıt gölgesi */
+  --pop-sm: 2px 3px 0 var(--ink);
+  --wrap: 1100px;
+}
