@@ -4,7 +4,8 @@ import { run, MeshError, NoInkError } from "./pipeline/index.js";
 // Stil -> boru hattı parametreleri (README'deki iki ayarlanmış kombinasyon)
 const STYLES = {
   cercevesiz: (size) => ({ frame: 0, size }),
-  cemberli: (size) => ({ frame: 1, line_d: 0.6, bail_hole: 3, bail_d: 1.4, outer_d: size }),
+  // 36 mm çemberde figür ~30 mm'ye sığar; detay kaybolmasın diye tel 0,5 mm'ye iner
+  cemberli: (size) => ({ frame: 1, line_d: size <= 36 ? 0.5 : 0.6, bail_hole: 3, bail_d: 1.4, outer_d: size }),
 };
 const MIN_SHORT_SIDE = 6.0;   // mm; çerçevesiz kolyenin kısa kenarı bundan küçükse çizim bulunamamış sayılır
 

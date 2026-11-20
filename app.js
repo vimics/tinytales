@@ -43,7 +43,7 @@ function uploadError(msg) { const e = $("upload-error"); e.textContent = msg || 
 
 function getWorker() {
   if (worker) return worker;
-  worker = new Worker("worker.js?v=7", { type: "module" });
+  worker = new Worker("worker.js?v=8", { type: "module" });
   worker.onmessage = (ev) => onWorkerMessage(ev.data);
   worker.onerror = () => { for (const j of jobs.values()) if (j.status === "isleniyor") fail(j, "other"); worker.terminate(); worker = null; };
   return worker;
