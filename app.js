@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const views = ["yukle", "isleniyor", "sonuc", "siparis", "tamam"];
 const STYLE_NAMES = { cercevesiz: "Çerçevesiz", cemberli: "Çember içinde" };
-let cfg = { sizes: { cercevesiz: [35, 45, 55], cemberli: [30, 36, 42] }, zincirler: [], fiyat: null };
+let cfg = { sizes: { cercevesiz: [35, 45, 55], cemberli: [36, 42, 48] }, varsayilan: { cercevesiz: 45, cemberli: 48 }, zincirler: [], fiyat: null };
 let job = null;            // ekrandaki hazır iş
 let pick = null;           // panelde seçili {style, size}
 let viewer = null;
@@ -43,7 +43,7 @@ function uploadError(msg) { const e = $("upload-error"); e.textContent = msg || 
 
 function getWorker() {
   if (worker) return worker;
-  worker = new Worker("worker.js?v=5", { type: "module" });
+  worker = new Worker("worker.js?v=7", { type: "module" });
   worker.onmessage = (ev) => onWorkerMessage(ev.data);
   worker.onerror = () => { for (const j of jobs.values()) if (j.status === "isleniyor") fail(j, "other"); worker.terminate(); worker = null; };
   return worker;
@@ -116,7 +116,7 @@ async function onWorkerMessage(msg) {
   if (msg.type === "progress") { j.stage = msg.stage; return; }
   if (msg.type === "error") return fail(j, msg.kind);
   j.metrics = msg.metrics;
-  j.stl = URL.createObjectURL(new Blob([msg.stl], { type: "model/stl" }));
+  j.tris = msg.tris;
   const rc = document.createElement("canvas");
   rc.width = msg.render.width; rc.height = msg.render.height;
   rc.getContext("2d").putImageData(new ImageData(msg.render.data, msg.render.width, msg.render.height), 0, 0);
@@ -124,7 +124,7 @@ async function onWorkerMessage(msg) {
   j.onizleme = await drawSelection(j, msg.strokes, msg.kept);
   j.status = "hazir";
   for (const old of jobs.values())      // eski sonuçların belleğini bırak; ekrandaki ve yenisi kalır
-    if (old !== j && old !== job && old.stl) { URL.revokeObjectURL(old.stl); URL.revokeObjectURL(old.render); URL.revokeObjectURL(old.onizleme); jobs.delete(old.id); }
+    if (old !== j && old !== job && old.tris) { URL.revokeObjectURL(old.render); URL.revokeObjectURL(old.onizleme); jobs.delete(old.id); }
   if (location.hash.startsWith(`#/k/${j.id}`)) route();
 }
 
@@ -182,7 +182,7 @@ function seg(el, values, current, label, onPick) {
 
 function renderPanel() {
   seg($("seg-style"), Object.keys(STYLE_NAMES), pick.style, (v) => STYLE_NAMES[v], (v) => {
-    pick = { style: v, size: cfg.sizes[v][1] }; renderPanel();
+    pick = { style: v, size: cfg.varsayilan[v] }; renderPanel();
   });
   seg($("seg-size"), cfg.sizes[pick.style], pick.size, (v) => `${v} mm`, (v) => { pick.size = v; renderPanel(); });
   $("size-help").textContent = pick.style === "cemberli" ? "(çember dış çapı)" : "(uzun kenar)";
@@ -190,6 +190,7 @@ function renderPanel() {
   $("redo").hidden = !changed;
   $("go-order").disabled = changed;
   $("go-order").textContent = changed ? "Önce yeniden yapın" : "Bunu istiyorum";
+  if ($("dl-stl")) $("dl-stl").hidden = changed;
 }
 
 function showResult(j) {
@@ -211,7 +212,6 @@ function showResult(j) {
   }));
   $("poster").src = j.render; $("poster").hidden = false;
   $("img-secim").src = j.onizleme; $("img-cizim").src = j.girdi;
-  $("dl-stl").href = j.stl; $("dl-stl").download = "cizim-kolye.stl";
   $("hint").textContent = "3B model yükleniyor…"; $("hint").hidden = false;
   selectTab("3d");
   renderPanel();
@@ -228,7 +228,7 @@ function selectTab(name) {
 async function load3d(j) {
   try {
     if (!viewer) viewer = (await import("./viewer.js")).createViewer($("canvas"));
-    await viewer.load(j.stl);
+    viewer.load(j.tris);
     if (job !== j) return;
     $("poster").hidden = true;
     $("hint").textContent = "Döndürmek için sürükleyin";
@@ -322,6 +322,35 @@ $("go-order").onclick = () => { location.hash = `#/k/${job.id}/siparis`; };
 $("back-result").onclick = () => { location.hash = `#/k/${job.id}`; };
 for (const b of document.querySelectorAll(".tabs button")) b.onclick = () => selectTab(b.dataset.tab);
 
+// ---------------------------------------------------------------- atölye kipi
+// STL indirme yalnızca atölye anahtarını bilen tarayıcıda açılır: #atolye=<anahtar> bir kez açılır,
+// anahtar o cihazın localStorage'ında kalır; config.json yalnızca anahtarın SHA-256 özetini tutar.
+async function sha256(s) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function atolye() {
+  try {
+    const m = location.hash.match(/^#atolye=(.+)$/);
+    if (m) {
+      history.replaceState(null, "", "#/");
+      if (m[1] === "kapat") localStorage.removeItem("atolye"); else localStorage.setItem("atolye", m[1]);
+    }
+    const key = localStorage.getItem("atolye");
+    if (!key || !cfg.atolye_sha256 || await sha256(key) !== cfg.atolye_sha256) return;
+  } catch { return; }                    // localStorage kapalı ya da güvenli bağlam değil
+  const b = Object.assign(document.createElement("button"),
+    { id: "dl-stl", type: "button", className: "btn btn-ghost btn-block", textContent: "STL indir (atölye)" });
+  b.onclick = async () => {
+    const { toStl } = await import("./pipeline/geometry.js");
+    const faces = Uint32Array.from({ length: job.tris.length / 3 }, (_, i) => i);
+    const url = URL.createObjectURL(new Blob([toStl(job.tris, faces)], { type: "model/stl" }));
+    Object.assign(document.createElement("a"), { href: url, download: `kolye-${job.style}-${job.size}mm.stl` }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+  $("go-order").after(b);
+}
+
 function route() {
   const m = location.hash.match(/^#\/k\/([0-9a-f]{32})(\/siparis)?$/);
   const j = m && jobs.get(m[1]);
@@ -342,5 +371,6 @@ window.addEventListener("hashchange", route);
     cfg = { ...cfg, ...(await (await fetch("config.json")).json()) };
   } catch { /* varsayılanlarla devam */ }
   $("f-zincir").replaceChildren(...cfg.zincirler.map((z) => new Option(z.ad, z.id)));
+  await atolye();
   route();
 })();

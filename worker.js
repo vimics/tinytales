@@ -1,5 +1,5 @@
 // Boru hattını arayüzü dondurmadan çalıştıran Web Worker. Fotoğraf cihazdan çıkmaz.
-import { run, toStl, MeshError, NoInkError } from "./pipeline/index.js";
+import { run, MeshError, NoInkError } from "./pipeline/index.js";
 
 // Stil -> boru hattı parametreleri (README'deki iki ayarlanmış kombinasyon)
 const STYLES = {
@@ -19,9 +19,12 @@ self.onmessage = (ev) => {
     const m = r.metrics;
     // boş kağıt / tek karalama: boru hattı kağıt dokusundan şerit gibi bir "kolye" üretebiliyor
     if (style === "cercevesiz" && Math.min(m.en, m.boy) < MIN_SHORT_SIDE) throw new NoInkError("çok küçük");
-    const stl = toStl(r.verts, r.faces);
-    self.postMessage({ id, type: "done", stl, render: r.render, strokes: r.strokes, kept: r.kept, metrics: m },
-                     [stl, r.render.data.buffer]);
+    // Tarayıcıda STL dosyası üretilmez (indirilebilir üretim dosyası sipariş sonrası Python ile çıkar);
+    // görüntüleyiciye yalnızca üçgen köşeleri gider.
+    const tris = new Float32Array(r.faces.length * 3);
+    for (let i = 0; i < r.faces.length; i++) tris.set(r.verts.subarray(3 * r.faces[i], 3 * r.faces[i] + 3), 3 * i);
+    self.postMessage({ id, type: "done", tris, render: r.render, strokes: r.strokes, kept: r.kept, metrics: m },
+                     [tris.buffer, r.render.data.buffer]);
   } catch (e) {
     console.error(e);
     self.postMessage({ id, type: "error", kind: e instanceof MeshError ? "mesh" : e instanceof NoInkError ? "noink" : "other" });

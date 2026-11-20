@@ -1,7 +1,6 @@
-// Kolye ucu STL'i için döndürülebilir metal görüntüleyici (three.js).
+// Kolye ucu için döndürülebilir metal görüntüleyici (three.js).
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
-import { STLLoader } from "./vendor/STLLoader.js";
 import { RoomEnvironment } from "./vendor/RoomEnvironment.js";
 
 export function createViewer(canvas) {
@@ -51,8 +50,11 @@ export function createViewer(canvas) {
     if (controls.update() || dirty) { renderer.render(scene, camera); dirty = false; }
   });
 
-  async function load(url) {
-    const geo = await new STLLoader().loadAsync(url);
+  /** tris: üçgen köşeleri (Float32Array, üçgen başına 9 sayı) */
+  function load(tris) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(tris, 3));
+    geo.computeVertexNormals();
     geo.center();
     geo.computeBoundingSphere();
     radius = geo.boundingSphere.radius;
